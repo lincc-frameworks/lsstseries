@@ -80,6 +80,9 @@ class timeseries:
         index = self._build_index(self.data[band_label])
         self.data.index = index
 
+        index = self._build_index(self.data[band_label])
+        self.data.index = index
+
         labels = [time_label, flux_label, err_label]
         for label, quantity in zip(labels, list(self.colmap.keys())):
 

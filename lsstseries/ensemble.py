@@ -1,7 +1,9 @@
 import pandas as pd
+import vaex
 import pyvo as vo
 from .timeseries import timeseries
 import time
+import numpy as np
 
 
 class ensemble:
@@ -10,10 +12,56 @@ class ensemble:
     def __init__(self, token=None):
         self.result = None  # holds the latest query
         self.token = token
+        self.data = None
 
-        self._time_col = "midPointTai"
-        self._flux_col = "psFlux"
-        self._err_col = "psFluxErr"
+        self._id_col = 'object_id'
+        self._time_col = 'midPointTai'
+        self._flux_col = 'psFlux'
+        self._err_col = 'psFluxErr'
+        self._band_col = 'band'
+
+    def count(self,sort=True,ascending=False):
+        """Return the number of available measurements for each lightcurve"""
+        count_df = self.data.groupby(self._id_col,'count')
+        if sort:
+            count_df = count_df.sort('count', ascending=ascending)
+        return count_df
+
+    def dropna(self, threshold):
+        """wrapper for vaex.dataframe.DataFrame.dropna"""
+        self.data = self.data.dropna()
+        return self
+
+    def prune(self, threshold):
+        """remove objects with less observations than a given threshold"""
+        count = self.count(sort=False)
+        subset_ids = count[count['count'] >= threshold][self._id_col]
+        mask = self.data[self._id_col].isin(subset_ids.to_numpy())
+        self.data = self.data[mask]
+        return self
+
+    def batch(self,func):
+        """Run a function from lsstseries.timeseries on the available ids"""
+        raise NotImplementedError
+
+    def from_parquet(self, file, id_col = None, time_col=None, flux_col=None,
+                     err_col=None, band_col=None):
+
+        """Read in a parquet file"""
+        #self.data = dd.read_parquet(file, index=False)
+        self.data = vaex.open(file)
+
+        # Track critical column changes
+        if id_col is not None:
+            self._id_col = id_col
+        if time_col is not None:
+            self._time_col = time_col
+        if flux_col is not None:
+            self._flux_col = flux_col
+        if err_col is not None:
+            self._err_col = err_col
+        if band_col is not None:
+            self._band_col = band_col
 
     def tap_token(self, token):
         """Add/update a TAP token to the class, enables querying
@@ -137,9 +185,8 @@ class ensemble:
 
         return result
 
-    def to_timeseries(
-        self, dataframe, target, time_col=None, flux_col=None, err_col=None
-    ):
+    def to_timeseries(self, target, id_col=None, time_col=None, 
+                      flux_col=None, err_col=None, band_col=None):
         """Construct a timeseries object from one target object_id, assumes that the result
         is a collection of lightcurves (output from query_ids)
 
@@ -157,21 +204,21 @@ class ensemble:
         """
 
         # Without a specified column, use defaults (which are updated via query_id)
+        if id_col is None:
+            id_col = self._id_col
         if time_col is None:
             time_col = self._time_col
         if flux_col is None:
             flux_col = self._flux_col
         if err_col is None:
             err_col = self._err_col
+        if band_col is None:
+            band_col = self._band_col
 
-        df = dataframe.xs(target)
-        ts = timeseries()._from_ensemble(
-            data=df,
-            object_id=target,
-            time_label=time_col,
-            flux_label=flux_col,
-            err_label=err_col,
-        )
+        df = self.data
+        df = df[(df[self._id_col] == target)].to_pandas_df()
+        ts = timeseries()._from_ensemble(data=df, object_id=target, time_label=time_col,
+                                         flux_label=flux_col, err_label=err_col, band_label=band_col)
         return ts
 
     def flux_to_mag(self, cols):

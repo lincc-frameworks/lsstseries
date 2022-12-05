@@ -3,7 +3,6 @@ import vaex
 import pyvo as vo
 from .timeseries import timeseries
 import time
-import numpy as np
 
 
 class ensemble:
@@ -20,9 +19,9 @@ class ensemble:
         self._err_col = 'psFluxErr'
         self._band_col = 'band'
 
-    def count(self,sort=True,ascending=False):
+    def count(self, sort=True, ascending=False):
         """Return the number of available measurements for each lightcurve"""
-        count_df = self.data.groupby(self._id_col,'count')
+        count_df = self.data.groupby(self._id_col, 'count')
         if sort:
             count_df = count_df.sort('count', ascending=ascending)
         return count_df
@@ -40,15 +39,14 @@ class ensemble:
         self.data = self.data[mask]
         return self
 
-    def batch(self,func):
+    def batch(self, func):
         """Run a function from lsstseries.timeseries on the available ids"""
         raise NotImplementedError
 
-    def from_parquet(self, file, id_col = None, time_col=None, flux_col=None,
+    def from_parquet(self, file, id_col=None, time_col=None, flux_col=None,
                      err_col=None, band_col=None):
 
         """Read in a parquet file"""
-        #self.data = dd.read_parquet(file, index=False)
         self.data = vaex.open(file)
 
         # Track critical column changes
@@ -185,7 +183,7 @@ class ensemble:
 
         return result
 
-    def to_timeseries(self, target, id_col=None, time_col=None, 
+    def to_timeseries(self, target, id_col=None, time_col=None,
                       flux_col=None, err_col=None, band_col=None):
         """Construct a timeseries object from one target object_id, assumes that the result
         is a collection of lightcurves (output from query_ids)
